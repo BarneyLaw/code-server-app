@@ -1,7 +1,7 @@
 name: build-and-update-config
 on:
   push:
-    branches: [main]
+    branches: [main, master]
   # let you rebuild on demand (e.g. to pick up a newer VS Code CLI)
   workflow_dispatch:
 
