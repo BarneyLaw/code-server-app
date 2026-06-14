@@ -37,14 +37,15 @@ RUN curl -fsSL "https://dl.k8s.io/release/$(curl -fsSL https://dl.k8s.io/release
     && chmod +x /usr/local/bin/kubectl
 
 # --- VS Code CLI (the `code` binary that hosts the tunnel) ------------------
-# Stable build, server-side CLI. Arch mapping: amd64->x64, arm64->arm64.
+# Use the stable update API (returns the tarball directly). The old
+# code.visualstudio.com/sha/download redirect endpoint 404s intermittently.
 RUN set -eux; \
     case "${TARGETARCH}" in \
-      amd64) VSCODE_ARCH="x64" ;; \
-      arm64) VSCODE_ARCH="arm64" ;; \
+      amd64) VSCODE_ARCH="cli-linux-x64" ;; \
+      arm64) VSCODE_ARCH="cli-linux-arm64" ;; \
       *) echo "unsupported arch ${TARGETARCH}" && exit 1 ;; \
     esac; \
-    curl -fsSL "https://code.visualstudio.com/sha/download?build=stable&os=cli-linux-${VSCODE_ARCH}" \
+    curl -fsSL "https://update.code.visualstudio.com/latest/${VSCODE_ARCH}/stable" \
       -o /tmp/vscode-cli.tar.gz; \
     tar -xzf /tmp/vscode-cli.tar.gz -C /usr/local/bin; \
     rm /tmp/vscode-cli.tar.gz; \
