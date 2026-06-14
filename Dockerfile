@@ -1,0 +1,69 @@
+# Dev-container image for the homelab cluster.
+# Runs Microsoft's `code tunnel` host so your LOCAL VS Code (Remote-Tunnels)
+# attaches to whatever node K3s schedules this onto.
+#
+# Design notes:
+#  - Non-root user `dev` (uid 1000). The pod spec also enforces runAsNonRoot,
+#    so the image must not need root at runtime.
+#  - Toolchain is baked in at build time so a freshly-scheduled pod is ready
+#    immediately — no apt-get on startup (which the egress policy would block
+#    anyway, since the policy denies general internet).
+#  - No secrets in the image. Tunnel auth happens at runtime (see entrypoint).
+
+FROM debian:12-slim
+
+ARG TARGETARCH=amd64
+
+# --- base tooling -----------------------------------------------------------
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        ca-certificates curl git openssh-client gnupg \
+        build-essential pkg-config \
+        python3 python3-pip python3-venv \
+        jq ripgrep fd-find less vim tini \
+    && rm -rf /var/lib/apt/lists/*
+
+# --- Go ---------------------------------------------------------------------
+ARG GO_VERSION=1.22.4
+RUN curl -fsSL "https://go.dev/dl/go${GO_VERSION}.linux-${TARGETARCH}.tar.gz" \
+      | tar -C /usr/local -xz
+ENV PATH="/usr/local/go/bin:/home/dev/go/bin:${PATH}"
+ENV GOPATH="/home/dev/go"
+
+# --- Rust (installed per-user below so it lands in the dev homedir) ---------
+
+# --- kubectl ----------------------------------------------------------------
+RUN curl -fsSL "https://dl.k8s.io/release/$(curl -fsSL https://dl.k8s.io/release/stable.txt)/bin/linux/${TARGETARCH}/kubectl" \
+      -o /usr/local/bin/kubectl \
+    && chmod +x /usr/local/bin/kubectl
+
+# --- VS Code CLI (the `code` binary that hosts the tunnel) ------------------
+# Stable build, server-side CLI. Arch mapping: amd64->x64, arm64->arm64.
+RUN set -eux; \
+    case "${TARGETARCH}" in \
+      amd64) VSCODE_ARCH="x64" ;; \
+      arm64) VSCODE_ARCH="arm64" ;; \
+      *) echo "unsupported arch ${TARGETARCH}" && exit 1 ;; \
+    esac; \
+    curl -fsSL "https://code.visualstudio.com/sha/download?build=stable&os=cli-linux-${VSCODE_ARCH}" \
+      -o /tmp/vscode-cli.tar.gz; \
+    tar -xzf /tmp/vscode-cli.tar.gz -C /usr/local/bin; \
+    rm /tmp/vscode-cli.tar.gz; \
+    chmod +x /usr/local/bin/code
+
+# --- non-root user ----------------------------------------------------------
+RUN useradd -m -u 1000 -s /bin/bash dev
+USER dev
+WORKDIR /home/dev
+
+# Rust for the dev user
+RUN curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs \
+      | sh -s -- -y --no-modify-path
+ENV PATH="/home/dev/.cargo/bin:${PATH}"
+
+# Workspace mountpoint (an emptyDir is mounted here by the pod spec)
+RUN mkdir -p /home/dev/workspace
+WORKDIR /home/dev/workspace
+
+COPY --chown=dev:dev entrypoint.sh /home/dev/entrypoint.sh
+
+ENTRYPOINT ["/usr/bin/tini", "--", "/home/dev/entrypoint.sh"]
