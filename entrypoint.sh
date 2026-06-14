@@ -45,5 +45,4 @@ cd "${WORKSPACE}"
 echo "[entrypoint] starting code tunnel as '${TUNNEL_NAME}'"
 exec code tunnel \
   --accept-server-license-terms \
-  --name "${TUNNEL_NAME}" \
-  --random-name=false
+  --name "${TUNNEL_NAME}" 
