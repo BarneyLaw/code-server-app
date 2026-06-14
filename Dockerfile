@@ -36,6 +36,15 @@ RUN curl -fsSL "https://dl.k8s.io/release/$(curl -fsSL https://dl.k8s.io/release
       -o /usr/local/bin/kubectl \
     && chmod +x /usr/local/bin/kubectl
 
+# --- Node.js 24 ----------------------------------------------------------------
+ARG NODE_VERSION=24
+RUN curl -fsSL https://deb.nodesource.com/setup_24.x | bash - \
+    && apt-get install -y --no-install-recommends nodejs \
+    && rm -rf /var/lib/apt/lists/*
+
+# --- Codex CLI (for AI-assisted coding) ------------------------------------------------
+RUN npm install -g @openai/codex
+
 # --- VS Code CLI (the `code` binary that hosts the tunnel) ------------------
 # Use the stable update API (returns the tarball directly). The old
 # code.visualstudio.com/sha/download redirect endpoint 404s intermittently.
