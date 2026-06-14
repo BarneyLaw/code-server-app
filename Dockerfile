@@ -65,6 +65,6 @@ ENV PATH="/home/dev/.cargo/bin:${PATH}"
 RUN mkdir -p /home/dev/workspace
 WORKDIR /home/dev/workspace
 
-COPY --chown=dev:dev entrypoint.sh /home/dev/entrypoint.sh
+COPY --chown=dev:dev --chmod=755 entrypoint.sh /home/dev/entrypoint.sh
 
 ENTRYPOINT ["/usr/bin/tini", "--", "/home/dev/entrypoint.sh"]
