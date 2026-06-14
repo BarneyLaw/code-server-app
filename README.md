@@ -1,1 +1,2 @@
-A repo for developer containers hosted on any servers with CICD pipeliens
+A repo for developer containers images to be hosted on any servers with CICD pipelines
+
