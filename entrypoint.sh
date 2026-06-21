@@ -22,6 +22,31 @@ TUNNEL_NAME="${TUNNEL_NAME:-homelab-dev}"
 
 echo "[entrypoint] workspace=${WORKSPACE} repo=${REPO_URL:-<none>} branch=${REPO_BRANCH}"
 
+# --- 1a. GitHub credentials (scoped PAT) -----------------------------------
+# The agent/git get EXACTLY the repo this PAT is scoped to — not the account.
+# Closes the GIT_ASKPASS leak: without this, git brokered creds through the
+# signed-in editor session = account-wide push. We force the scoped PAT only.
+GITHUB_PAT_FILE="${GITHUB_PAT_FILE:-/var/run/secrets/devbox/github-pat}"
+
+# Drop the editor's ambient credential broker so git can't fall back to the
+# account-wide VS Code session. (Exported empty for all child processes.)
+unset GIT_ASKPASS VSCODE_GIT_ASKPASS_NODE VSCODE_GIT_ASKPASS_MAIN \
+      VSCODE_GIT_ASKPASS_EXTRA_ARGS VSCODE_GIT_IPC_HANDLE || true
+
+if [ -s "${GITHUB_PAT_FILE}" ]; then
+  echo "[entrypoint] configuring git with scoped PAT"
+  export GH_TOKEN="$(tr -d '\n' < "${GITHUB_PAT_FILE}")"
+  # Route git over HTTPS through the token. No gh dependency required:
+  git config --global credential.helper store
+  printf 'https://x-access-token:%s@github.com\n' "${GH_TOKEN}" \
+    > "${HOME}/.git-credentials"
+  chmod 600 "${HOME}/.git-credentials"
+  git config --global user.name  "${GIT_AUTHOR_NAME:-devbox}"
+  git config --global user.email "${GIT_AUTHOR_EMAIL:-devbox@packetcraft.dev}"
+else
+  echo "[entrypoint] WARN: no PAT at ${GITHUB_PAT_FILE} — pushes will fail"
+fi
+
 # --- 1. populate workspace --------------------------------------------------
 if [ -n "${REPO_URL}" ]; then
   if [ -z "$(ls -A "${WORKSPACE}" 2>/dev/null)" ]; then
