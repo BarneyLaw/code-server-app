@@ -45,6 +45,15 @@ RUN curl -fsSL https://deb.nodesource.com/setup_24.x | bash - \
 # --- Codex CLI (for AI-assisted coding) ------------------------------------------------
 RUN npm install -g @openai/codex
 
+# --- Flutter prerequisites (system libs; SDK is installed per-user below) ----
+# Added for the budget-app environment. Android SDK is NOT baked in here — for
+# `flutter test` / analyze / desktop builds these suffice. Android cmdline-tools
+# can be layered later if you need on-device/APK builds from the box.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        unzip xz-utils zip libglu1-mesa \
+        clang cmake ninja-build pkg-config libgtk-3-dev \
+    && rm -rf /var/lib/apt/lists/*
+
 # --- VS Code CLI (the `code` binary that hosts the tunnel) ------------------
 # Use the stable update API (returns the tarball directly). The old
 # code.visualstudio.com/sha/download redirect endpoint 404s intermittently.
@@ -69,6 +78,17 @@ WORKDIR /home/dev
 RUN curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs \
       | sh -s -- -y --no-modify-path
 ENV PATH="/home/dev/.cargo/bin:${PATH}"
+
+# Flutter SDK for the dev user (writable tool cache at runtime).
+ARG FLUTTER_VERSION=3.27.1
+RUN git clone --depth 1 --branch ${FLUTTER_VERSION} \
+        https://github.com/flutter/flutter.git /home/dev/flutter
+ENV PATH="/home/dev/flutter/bin:/home/dev/flutter/bin/cache/dart-sdk/bin:${PATH}"
+# Warm the cache + disable telemetry so first runtime `flutter` is fast/offline.
+RUN flutter --version \
+    && flutter config --no-analytics \
+    && dart --disable-analytics \
+    && flutter precache --universal
 
 # Workspace mountpoint (an emptyDir is mounted here by the pod spec)
 RUN mkdir -p /home/dev/workspace
